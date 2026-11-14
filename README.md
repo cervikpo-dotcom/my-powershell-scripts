@@ -14,4 +14,4 @@ Downloaded scripts are blocked by default on Windows. To run a script in your cu
 Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process
 ```
 
-**Note:** If you choose to bypass the policy **make sure to switch it back** (e.g., to `RemoteSigned` or `Restricted`) once you are done running the script.
+**Note:** If you choose to bypass the policy **make sure to switch it back** (e.g., to `RemoteSigned` or `Restricted`) once you are done.
