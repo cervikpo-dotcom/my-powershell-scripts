@@ -40,7 +40,7 @@ function Decode-DigitalProductId {
     return $null
 }
 
-function Get-LicenseDetails {
+function Get-SystemAndLicenseDetails {
     $winAppId = '55c92734-d682-4d71-983e-d6ec3f16059f'
     $foundKey = $null
     $keySource = 'None'
@@ -48,10 +48,12 @@ function Get-LicenseDetails {
     try {
         if (Get-Command Get-CimInstance -ErrorAction SilentlyContinue) {
             $os = Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction SilentlyContinue
+            $cs = Get-CimInstance -ClassName Win32_ComputerSystem -ErrorAction SilentlyContinue
             $sls = Get-CimInstance -ClassName SoftwareLicensingService -ErrorAction SilentlyContinue
             $slp = Get-CimInstance -ClassName SoftwareLicensingProduct -Filter "ApplicationID='$winAppId' AND PartialProductKey IS NOT NULL" -ErrorAction SilentlyContinue
         } else {
             $os = Get-WmiObject -Class Win32_OperatingSystem -ErrorAction SilentlyContinue
+            $cs = Get-WmiObject -Class Win32_ComputerSystem -ErrorAction SilentlyContinue
             $sls = Get-WmiObject -Class SoftwareLicensingService -ErrorAction SilentlyContinue
             $slp = Get-WmiObject -Class SoftwareLicensingProduct -Filter "ApplicationID='$winAppId' AND PartialProductKey IS NOT NULL" -ErrorAction SilentlyContinue
         }
@@ -87,7 +89,6 @@ function Get-LicenseDetails {
         } catch {}
     }
 
-    # Handle multiple SLP entries safely if present
     $activeProduct = $slp | Where-Object { $_.LicenseStatus -eq 1 } | Select-Object -First 1
     if (-not $activeProduct -and $slp) { $activeProduct = $slp | Select-Object -First 1 }
 
@@ -95,9 +96,21 @@ function Get-LicenseDetails {
     $gracePeriod = $activeProduct.GracePeriodRemaining
     $daysLeft = if ($gracePeriod -gt 0) { "$([math]::Round($gracePeriod / 1440, 1)) days" } else { 'Permanent / Digital' }
 
+    $installDate = if ($os.InstallDate) { 
+        [Management.ManagementDateTimeConverter]::ToDateTime($os.InstallDate).ToString("yyyy-MM-dd HH:mm") 
+    } else { 
+        'Unknown' 
+    }
+
+    $systemModel = if ($cs.Model) { "$($cs.Manufacturer) $($cs.Model)".Trim() } else { 'Unknown' }
+
     return [PSCustomObject]@{
         ComputerName = $env:COMPUTERNAME
+        SystemModel  = $systemModel
         Edition      = if ($os.Caption) { $os.Caption } else { 'Windows' }
+        Build        = if ($os.Version) { "$($os.Version) (Build $($os.BuildNumber))" } else { 'Unknown' }
+        Architecture = if ($os.OSArchitecture) { $os.OSArchitecture } else { 'Unknown' }
+        InstallDate  = $installDate
         IsActivated  = $isActivated
         StatusText   = if ($isActivated) { 'Activated' } else { 'Not Activated' }
         Channel      = if ($activeProduct.ProductKeyChannel) { $activeProduct.ProductKeyChannel } else { 'Retail / OEM' }
@@ -111,16 +124,14 @@ function Get-LicenseDetails {
 # Modern UI Colors (Fluent Dark Theme)
 $bgDark   = [System.Drawing.Color]::FromArgb(32, 32, 32)
 $bgPanel  = [System.Drawing.Color]::FromArgb(45, 45, 45)
-$bgControl= [System.Drawing.Color]::FromArgb(60, 60, 60)
 $fgLight  = [System.Drawing.Color]::FromArgb(245, 245, 245)
 $fgMuted  = [System.Drawing.Color]::FromArgb(160, 160, 160)
 $danger   = [System.Drawing.Color]::FromArgb(209, 52, 56)
 $success  = [System.Drawing.Color]::FromArgb(16, 124, 65)
-$accent   = [System.Drawing.Color]::FromArgb(0, 120, 212)
 
 $form = New-Object System.Windows.Forms.Form
-$form.Text = "Windows License Manager"
-$form.Size = New-Object System.Drawing.Size(530, 430)
+$form.Text = "Windows License & Device Manager"
+$form.Size = New-Object System.Drawing.Size(530, 560)
 $form.StartPosition = "CenterScreen"
 $form.FormBorderStyle = "FixedDialog"
 $form.MaximizeBox = $false
@@ -129,7 +140,7 @@ $form.ForeColor = $fgLight
 $form.Font = New-Object System.Drawing.Font("Segoe UI", 9.5)
 
 $lblTitle = New-Object System.Windows.Forms.Label
-$lblTitle.Text = "System License & Key Audit"
+$lblTitle.Text = "System & License Audit"
 $lblTitle.Font = New-Object System.Drawing.Font("Segoe UI", 14, [System.Drawing.FontStyle]::Bold)
 $lblTitle.Location = New-Object System.Drawing.Point(20, 15)
 $lblTitle.AutoSize = $true
@@ -137,7 +148,7 @@ $form.Controls.Add($lblTitle)
 
 $panel = New-Object System.Windows.Forms.Panel
 $panel.Location = New-Object System.Drawing.Point(20, 55)
-$panel.Size = New-Object System.Drawing.Size(475, 195)
+$panel.Size = New-Object System.Drawing.Size(475, 305)
 $panel.BackColor = $bgPanel
 $form.Controls.Add($panel)
 
@@ -159,16 +170,20 @@ function Add-InfoRow {
     return $l2
 }
 
-$valHost    = Add-InfoRow -Y 15  -Label "Computer:"
-$valEdition = Add-InfoRow -Y 43  -Label "Edition:"
-$valStatus  = Add-InfoRow -Y 71  -Label "Status:"
-$valChannel = Add-InfoRow -Y 99  -Label "Channel:"
-$valSource  = Add-InfoRow -Y 127 -Label "Source:"
-$valKey     = Add-InfoRow -Y 155 -Label "Product Key:"
+$valHost     = Add-InfoRow -Y 12  -Label "Computer:"
+$valModel    = Add-InfoRow -Y 38  -Label "Model:"
+$valEdition  = Add-InfoRow -Y 64  -Label "Edition:"
+$valBuild    = Add-InfoRow -Y 90  -Label "Version:"
+$valArch     = Add-InfoRow -Y 116 -Label "Arch / Type:"
+$valInstall  = Add-InfoRow -Y 142 -Label "Install Date:"
+$valStatus   = Add-InfoRow -Y 168 -Label "Status:"
+$valChannel  = Add-InfoRow -Y 194 -Label "Channel:"
+$valSource   = Add-InfoRow -Y 220 -Label "Source:"
+$valKey      = Add-InfoRow -Y 246 -Label "Product Key:"
 $valKey.Font = New-Object System.Drawing.Font("Consolas", 10, [System.Drawing.FontStyle]::Bold)
 
 $txtNewKey = New-Object System.Windows.Forms.TextBox
-$txtNewKey.Location = New-Object System.Drawing.Point(20, 268)
+$txtNewKey.Location = New-Object System.Drawing.Point(20, 378)
 $txtNewKey.Size = New-Object System.Drawing.Size(315, 28)
 $txtNewKey.BackColor = $bgPanel
 $txtNewKey.ForeColor = $fgMuted
@@ -191,7 +206,7 @@ $txtNewKey.Add_LostFocus({
 $form.Controls.Add($txtNewKey)
 
 $btnAction = New-Object System.Windows.Forms.Button
-$btnAction.Location = New-Object System.Drawing.Point(345, 267)
+$btnAction.Location = New-Object System.Drawing.Point(345, 377)
 $btnAction.Size = New-Object System.Drawing.Size(150, 30)
 $btnAction.FlatStyle = "Flat"
 $btnAction.FlatAppearance.BorderSize = 0
@@ -209,21 +224,21 @@ $ButtonStyle = {
 
 $btnCopy = New-Object System.Windows.Forms.Button
 $btnCopy.Text = "Copy Key"
-$btnCopy.Location = New-Object System.Drawing.Point(20, 320)
+$btnCopy.Location = New-Object System.Drawing.Point(20, 435)
 $btnCopy.Size = New-Object System.Drawing.Size(150, 34)
 &$ButtonStyle $btnCopy
 $form.Controls.Add($btnCopy)
 
 $btnExport = New-Object System.Windows.Forms.Button
 $btnExport.Text = "Export CSV"
-$btnExport.Location = New-Object System.Drawing.Point(180, 320)
+$btnExport.Location = New-Object System.Drawing.Point(180, 435)
 $btnExport.Size = New-Object System.Drawing.Size(150, 34)
 &$ButtonStyle $btnExport
 $form.Controls.Add($btnExport)
 
 $btnRefresh = New-Object System.Windows.Forms.Button
 $btnRefresh.Text = "Refresh"
-$btnRefresh.Location = New-Object System.Drawing.Point(345, 320)
+$btnRefresh.Location = New-Object System.Drawing.Point(345, 435)
 $btnRefresh.Size = New-Object System.Drawing.Size(150, 34)
 &$ButtonStyle $btnRefresh
 $form.Controls.Add($btnRefresh)
@@ -234,11 +249,15 @@ function Update-UI {
     $form.Cursor = [System.Windows.Forms.Cursors]::WaitCursor
     [System.Windows.Forms.Application]::DoEvents()
     
-    $script:currentData = Get-LicenseDetails
+    $script:currentData = Get-SystemAndLicenseDetails
     $d = $script:currentData
 
     $valHost.Text    = $d.ComputerName
+    $valModel.Text   = $d.SystemModel
     $valEdition.Text = $d.Edition
+    $valBuild.Text   = $d.Build
+    $valArch.Text    = $d.Architecture
+    $valInstall.Text = $d.InstallDate
     $valChannel.Text = $d.Channel
     $valSource.Text  = $d.KeySource
     $valKey.Text     = $d.FullKey
@@ -248,13 +267,21 @@ function Update-UI {
         $valStatus.ForeColor = [System.Drawing.Color]::FromArgb(57, 197, 107)
         $btnAction.Text = "Deactivate"
         $btnAction.BackColor = $danger
-        $txtNewKey.Enabled = $false
+        
+        # Completely remove/hide the input option when activated
+        $txtNewKey.Visible = $false
+        $btnAction.Location = New-Object System.Drawing.Point(345, 378)
+        $btnAction.Size = New-Object System.Drawing.Size(150, 34)
     } else {
         $valStatus.Text = $d.StatusText
         $valStatus.ForeColor = [System.Drawing.Color]::FromArgb(249, 105, 108)
         $btnAction.Text = "Activate"
         $btnAction.BackColor = $success
-        $txtNewKey.Enabled = $true
+        
+        # Show input option when not activated
+        $txtNewKey.Visible = $true
+        $btnAction.Location = New-Object System.Drawing.Point(345, 377)
+        $btnAction.Size = New-Object System.Drawing.Size(150, 30)
     }
 
     $btnCopy.Enabled = $d.HasRawKey
@@ -271,9 +298,9 @@ $btnCopy.Add_Click({
 $btnExport.Add_Click({
     $sfd = New-Object System.Windows.Forms.SaveFileDialog
     $sfd.Filter = "CSV Files (*.csv)|*.csv"
-    $sfd.FileName = "$($env:COMPUTERNAME)_LicenseAudit.csv"
+    $sfd.FileName = "$($env:COMPUTERNAME)_SystemLicenseAudit.csv"
     if ($sfd.ShowDialog() -eq "OK") {
-        $script:currentData | Select-Object ComputerName, Edition, StatusText, Channel, KeySource, FullKey |
+        $script:currentData | Select-Object ComputerName, SystemModel, Edition, Build, Architecture, InstallDate, StatusText, Channel, KeySource, FullKey |
             Export-Csv -Path $sfd.FileName -NoTypeInformation -Encoding UTF8
         [System.Windows.Forms.MessageBox]::Show("Report successfully saved to $($sfd.FileName)", "Export Complete", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information) | Out-Null
     }
