@@ -8,10 +8,10 @@ These scripts are tailored to my local environment and come with no guarantees. 
 
 ## Running Scripts
 
-Downloaded scripts are blocked by default on Windows. To run a script in your current terminal session without permanently lowering your system's security, use the `Process` scope:
+Downloaded scripts are blocked by default on Windows. To run a script in windows system's security you must run this code in powershell:
 
 ```powershell
-Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process
+Set-ExecutionPolicy -ExecutionPolicy Bypass
 ```
 
 **Note:** If you choose to bypass the policy **make sure to switch it back** (e.g., to `RemoteSigned` or `Restricted`) once you are done.
