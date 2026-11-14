@@ -8,7 +8,7 @@ These scripts are tailored to my local environment and come with no guarantees. 
 
 ## Running Scripts
 
-Downloaded scripts are blocked by default on Windows. To run a script in windows system's security you must run this code in powershell:
+Downloaded scripts are blocked by default on Windows. To run a script in windows you must run this code in powershell:
 
 ```powershell
 Set-ExecutionPolicy -ExecutionPolicy Bypass
