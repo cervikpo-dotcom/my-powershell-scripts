@@ -4,7 +4,7 @@ A personal collection of PowerShell scripts I have written and saved over time. 
 
 ## Disclaimer
 
-These scripts are tailored to my local environment and come with no guarantees. Test them before running them on anything important.
+These scripts are tailored to windows and come with no guarantees. Test them before running them on anything important.
 
 ## Running Scripts
 
