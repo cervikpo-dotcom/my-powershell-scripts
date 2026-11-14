@@ -96,10 +96,18 @@ function Get-SystemAndLicenseDetails {
     $gracePeriod = $activeProduct.GracePeriodRemaining
     $daysLeft = if ($gracePeriod -gt 0) { "$([math]::Round($gracePeriod / 1440, 1)) days" } else { 'Permanent / Digital' }
 
-    $installDate = if ($os.InstallDate) { 
-        [Management.ManagementDateTimeConverter]::ToDateTime($os.InstallDate).ToString("yyyy-MM-dd HH:mm") 
-    } else { 
-        'Unknown' 
+    # Robust InstallDate parsing handling both DateTime objects and DMTF strings
+    $installDate = 'Unknown'
+    if ($os.InstallDate) {
+        try {
+            if ($os.InstallDate -is [DateTime]) {
+                $installDate = $os.InstallDate.ToString("yyyy-MM-dd HH:mm")
+            } else {
+                $installDate = [Management.ManagementDateTimeConverter]::ToDateTime($os.InstallDate).ToString("yyyy-MM-dd HH:mm")
+            }
+        } catch {
+            $installDate = $os.InstallDate.ToString()
+        }
     }
 
     $systemModel = if ($cs.Model) { "$($cs.Manufacturer) $($cs.Model)".Trim() } else { 'Unknown' }
@@ -268,7 +276,7 @@ function Update-UI {
         $btnAction.Text = "Deactivate"
         $btnAction.BackColor = $danger
         
-        # Completely remove/hide the input option when activated
+        # Hide the input box when activated
         $txtNewKey.Visible = $false
         $btnAction.Location = New-Object System.Drawing.Point(345, 378)
         $btnAction.Size = New-Object System.Drawing.Size(150, 34)
@@ -278,7 +286,7 @@ function Update-UI {
         $btnAction.Text = "Activate"
         $btnAction.BackColor = $success
         
-        # Show input option when not activated
+        # Show the input box when not activated
         $txtNewKey.Visible = $true
         $btnAction.Location = New-Object System.Drawing.Point(345, 377)
         $btnAction.Size = New-Object System.Drawing.Size(150, 30)
